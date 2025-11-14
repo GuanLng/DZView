@@ -1,0 +1,10 @@
+fastapi>=0.68.0
+uvicorn[standard]>=0.15.0
+aiofiles>=0.7.0
+httpx>=0.23.0
+pydantic>=2.0.0
+slowapi>=0.1.5
+
+# Test dependencies
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
