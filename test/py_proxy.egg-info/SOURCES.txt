@@ -1,0 +1,7 @@
+main.py
+pyproject.toml
+py_proxy.egg-info/PKG-INFO
+py_proxy.egg-info/SOURCES.txt
+py_proxy.egg-info/dependency_links.txt
+py_proxy.egg-info/requires.txt
+py_proxy.egg-info/top_level.txt

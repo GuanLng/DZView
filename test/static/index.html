@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Py-Proxy</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f8f9fa;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .description {
+            color: #7f8c8d;
+            font-size: 1.1em;
+        }
+
+        .proxy-form {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        #urlInput {
+            flex: 1;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        #urlInput:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        }
+
+        button {
+            padding: 12px 25px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #2980b9;
+        }
+
+        button:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        .examples {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+
+        .examples strong {
+            color: #2c3e50;
+        }
+
+        .error-banner {
+            background: #e74c3c;
+            color: white;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .result-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .result-header {
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .result-content {
+            padding: 20px;
+            max-height: 500px;
+            overflow: auto;
+        }
+
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            margin: 0;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+
+        .status-code {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .status-2xx { background: #2ecc71; color: white; }
+        .status-4xx { background: #e67e22; color: white; }
+        .status-5xx { background: #e74c3c; color: white; }
+
+        .captcha-warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border: 1px solid #ffeaa7;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .form-group {
+                flex-direction: column;
+            }
+            
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Py-Proxy</h1>
+            <p class="description">A FastAPI-powered HTTP proxy with security features</p>
+        </header>
+
+        <main>
+            <section class="proxy-form">
+                <form id="proxyForm">
+                    <div class="form-group">
+                        <input type="text" id="urlInput" placeholder="Enter URL to proxy (e.g., httpbin.org/get)" autocomplete="url" value="httpbin.org/get">
+                        <button type="submit" id="goButton">Go</button>
+                    </div>
+                </form>
+                <div class="examples">
+                    Recommended test URLs: <strong>httpbin.org/get</strong>, <strong>jsonplaceholder.typicode.com/posts</strong>
+                </div>
+            </section>
+
+            <div id="errorBanner" class="error-banner"></div>
+            
+            <div id="captchaWarning" class="captcha-warning" style="display: none;">
+                <strong>Notice:</strong> The target website may have returned a CAPTCHA or security verification page. 
+                This is normal when accessing sites like Google that protect against automated requests.
+            </div>
+
+            <section class="result-container">
+                <div class="result-header">
+                    <h2>Response</h2>
+                    <div id="statusIndicator"></div>
+                </div>
+                <div class="result-content">
+                    <div id="resultPlaceholder">
+                        <p>Enter a URL above to see the proxied response here.</p>
+                        <p style="margin-top: 10px; color: #7f8c8d;">
+                            Try <strong>httpbin.org/get</strong> for a simple test that should work reliably.
+                        </p>
+                    </div>
+                    <div id="loadingIndicator" class="loading" style="display: none;">
+                        <p>Loading...</p>
+                    </div>
+                    <div id="resultContent" style="display: none;"></div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Py-Proxy &copy; 2023 | Secure HTTP Proxy</p>
+        </footer>
+    </div>
+
+    <script>
+        document.getElementById('proxyForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const urlInput = document.getElementById('urlInput');
+            const goButton = document.getElementById('goButton');
+            const errorBanner = document.getElementById('errorBanner');
+            const resultPlaceholder = document.getElementById('resultPlaceholder');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const resultContent = document.getElementById('resultContent');
+            const statusIndicator = document.getElementById('statusIndicator');
+            const captchaWarning = document.getElementById('captchaWarning');
+            
+            // Hide previous error and results
+            errorBanner.style.display = 'none';
+            resultPlaceholder.style.display = 'none';
+            resultContent.style.display = 'none';
+            statusIndicator.innerHTML = '';
+            captchaWarning.style.display = 'none';
+            
+            const url = urlInput.value.trim();
+            if (!url) {
+                showError('Please enter a URL');
+                return;
+            }
+            
+            // Show loading state
+            goButton.disabled = true;
+            loadingIndicator.style.display = 'block';
+            
+            try {
+                // 发送到代理端点
+                const response = await fetch('/proxy/' + url);
+                
+                // 更新状态码指示器
+                const statusClass = `status-${Math.floor(response.status/100)}xx`;
+                statusIndicator.innerHTML = `<span class="status-code ${statusClass}">${response.status} ${response.statusText}</span>`;
+                
+                // 获取响应文本
+                const text = await response.text();
+                
+                // 检查是否可能是验证码页面
+                if (text.includes('captcha') || text.includes('CAPTCHA') || 
+                    text.includes('_guard') || text.includes('security check') ||
+                    response.status === 403 || response.status === 404) {
+                    captchaWarning.style.display = 'block';
+                }
+                
+                // 显示响应内容
+                resultContent.innerHTML = `<pre>${escapeHtml(text)}</pre>`;
+                resultContent.style.display = 'block';
+            } catch (error) {
+                showError(`Network error: ${error.message}`);
+            } finally {
+                // 重置加载状态
+                goButton.disabled = false;
+                loadingIndicator.style.display = 'none';
+            }
+        });
+        
+        function showError(message) {
+            const errorBanner = document.getElementById('errorBanner');
+            errorBanner.textContent = message;
+            errorBanner.style.display = 'block';
+            document.getElementById('resultContent').style.display = 'none';
+            document.getElementById('resultPlaceholder').style.display = 'none';
+        }
+        
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+        
+        // 页面加载完成后自动聚焦到输入框
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('urlInput').focus();
+        });
+    </script>
+</body>
+</html>
