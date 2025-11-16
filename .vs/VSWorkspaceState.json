@@ -1,0 +1,14 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\.pytest_cache",
+    "\\DZView",
+    "\\test",
+    "\\test\\.ruff_cache",
+    "\\test\\static",
+    "\\test\\tests",
+    "\\test\\venv"
+  ],
+  "SelectedNode": "\\test\\.gitignore",
+  "PreviewInSolutionExplorer": false
+}
