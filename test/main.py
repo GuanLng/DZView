@@ -18,8 +18,12 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Mount static files only if directory exists
+if os.path.exists("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+    logger.info("Static files mounted successfully")
+else:
+    logger.warning("Static directory not found, skipping static file serving")
 
 # Get allowed domains list
 ALLOWED_DOMAINS_ENV = os.getenv("ALLOWED_DOMAINS", "")
@@ -79,87 +83,35 @@ def extract_domain(url: str) -> Optional[str]:
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
-    return HTMLResponse(content="""
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Py-Proxy</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        .container { max-width: 800px; margin: 0 auto; }
-        input[type="text"] { width: 70%; padding: 10px; }
-        button { padding: 10px 20px; background: #007cba; color: white; border: none; cursor: pointer; }
-        button:hover { background: #005a87; }
-        #result { margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 4px; }
-        .error { background: #ffebee; color: #c62828; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
-        pre { white-space: pre-wrap; word-wrap: break-word; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Py-Proxy</h1>
-        <p>Enter a URL to proxy:</p>
-        <form id="proxyForm">
-            <input type="text" id="urlInput" placeholder="https://example.com" />
-            <button type="submit">Go</button>
-        </form>
-        <div id="errorBanner" class="error" style="display: none;"></div>
-        <div id="result"></div>
-    </div>
-
-    <script>
-        document.getElementById('proxyForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const urlInput = document.getElementById('urlInput');
-            const resultDiv = document.getElementById('result');
-            const errorBanner = document.getElementById('errorBanner');
-            
-            // Hide previous error
-            errorBanner.style.display = 'none';
-            
-            const url = urlInput.value.trim();
-            if (!url) {
-                showError('Please enter a URL');
-                return;
-            }
-            
-            try {
-                resultDiv.innerHTML = '<p>Loading...</p>';
-                const response = await fetch('/proxy/' + encodeURIComponent(url));
-                
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-                    throw new Error(errorData.detail || 'Request failed');
-                }
-                
-                const text = await response.text();
-                resultDiv.innerHTML = `<pre>${escapeHtml(text)}</pre>`;
-            } catch (error) {
-                showError(error.message);
-            }
-        });
-        
-        function showError(message) {
-            const errorBanner = document.getElementById('errorBanner');
-            errorBanner.textContent = message;
-            errorBanner.style.display = 'block';
-            document.getElementById('result').innerHTML = '';
-        }
-        
-        function escapeHtml(text) {
-            const map = {
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                '"': '&quot;',
-                "'": '&#039;'
-            };
-            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
-        }
-    </script>
-</body>
-</html>
-""", status_code=200)
+    # 如果有static目录，重定向到静态页面
+    if os.path.exists("static"):
+        return HTMLResponse(content="""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta http-equiv="refresh" content="0;url=/static/index.html" />
+            <title>Redirecting...</title>
+        </head>
+        <body>
+            <p>Redirecting to <a href="/static/index.html">proxy interface</a>...</p>
+        </body>
+        </html>
+        """, status_code=200)
+    else:
+        # 如果没有static目录，显示简单的根页面
+        return HTMLResponse(content="""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Py-Proxy</title>
+        </head>
+        <body>
+            <h1>Py-Proxy</h1>
+            <p>Proxy service is running.</p>
+            <p>To use the web interface, please create a <code>static</code> directory with an <code>index.html</code> file.</p>
+        </body>
+        </html>
+        """, status_code=200)
 
 @app.api_route("/proxy/{target:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])
 async def proxy_handler(request: Request, target: str) -> Response:
@@ -245,28 +197,62 @@ async def proxy_handler(request: Request, target: str) -> Response:
                 except ValueError:
                     pass  # Ignore if content-length is not a valid integer
             
-            # Create a streaming response with size checking
-            bytes_received = 0
-            
-            async def stream_generator():
-                nonlocal bytes_received
-                async for chunk in httpx_response.aiter_bytes():
-                    bytes_received += len(chunk)
-                    if bytes_received > MAX_RESPONSE_SIZE:
-                        logger.warning(f"Response exceeded maximum size: {bytes_received} bytes")
-                        # Note: We can't raise an HTTPException here as we're already streaming
-                        # The client will receive a partial response, but this is a limitation
-                        # of the streaming approach
-                        break
-                    yield chunk
-            
-            # Return upstream response status code, headers, and body exactly as received
-            return StreamingResponse(
-                stream_generator(),
-                status_code=httpx_response.status_code,
-                headers=dict(httpx_response.headers),
-                media_type=httpx_response.headers.get("content-type")
+            # Determine if response is text-based
+            content_type = httpx_response.headers.get("content-type", "").lower()
+            is_text_content = (
+                "text" in content_type or 
+                "json" in content_type or 
+                "xml" in content_type or 
+                "javascript" in content_type or 
+                "html" in content_type or
+                content_type == ""
             )
+            
+            # For text content, forward bytes and clean headers
+            if is_text_content:
+                content_bytes = httpx_response.content
+
+                # Prepare response headers and remove hop-by-hop or invalid enc headers
+                resp_headers = dict(httpx_response.headers)
+                for h in [
+                    'content-length','Content-Length',
+                    'transfer-encoding','Transfer-Encoding',
+                    'connection','Connection',
+                    'content-encoding','Content-Encoding',
+                    'etag','ETag'
+                ]:
+                    resp_headers.pop(h, None)
+
+                return Response(
+                    content=content_bytes,
+                    status_code=httpx_response.status_code,
+                    headers=resp_headers,
+                    media_type=content_type or "text/plain"
+                )
+            else:
+                # For binary content, stream it
+                async def stream_generator():
+                    async for chunk in httpx_response.aiter_bytes():
+                        yield chunk
+                
+                # Remove hop-by-hop and encoding headers for streaming responses as well
+                resp_headers = dict(httpx_response.headers)
+                for h in [
+                    'content-length','Content-Length',
+                    'transfer-encoding','Transfer-Encoding',
+                    'connection','Connection',
+                    'content-encoding','Content-Encoding',
+                    'etag','ETag'
+                ]:
+                    resp_headers.pop(h, None)
+ 
+                return StreamingResponse(
+                    stream_generator(),
+                    status_code=httpx_response.status_code,
+                    headers=resp_headers,
+                    media_type=content_type
+                )
+                
         except httpx.TimeoutException as e:
             logger.error(f"Upstream timeout for {target_url}: {e}")
             raise HTTPException(status_code=504, detail="Upstream timeout")

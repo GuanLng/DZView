@@ -7,5 +7,8 @@ Requires-Dist: uvicorn[standard]>=0.15.0
 Requires-Dist: aiofiles>=0.7.0
 Requires-Dist: httpx>=0.23.0
 Requires-Dist: pydantic>=2.0.0
+Requires-Dist: slowapi>=0.1.5
 Provides-Extra: dev
 Requires-Dist: ruff>=0.0.252; extra == "dev"
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"

@@ -3,6 +3,9 @@ uvicorn[standard]>=0.15.0
 aiofiles>=0.7.0
 httpx>=0.23.0
 pydantic>=2.0.0
+slowapi>=0.1.5
 
 [dev]
 ruff>=0.0.252
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
