@@ -14,7 +14,7 @@ try:
         is_private_ip,
         compile_allowed_patterns,
     )
-    from .metrics import add_up_bytes, add_down_bytes
+    from .metrics import add_up_bytes, add_down_bytes, record_request
 except ImportError:  # pragma: no cover - fallback for direct execution
     from security import (
         extract_domain,
@@ -22,7 +22,7 @@ except ImportError:  # pragma: no cover - fallback for direct execution
         is_private_ip,
         compile_allowed_patterns,
     )
-    from metrics import add_up_bytes, add_down_bytes
+    from metrics import add_up_bytes, add_down_bytes, record_request
 
 logger = logging.getLogger(__name__)
 
@@ -99,9 +99,11 @@ async def proxy_handler(request: Request, target: str) -> Response:
 
     async with httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT) as client:
         try:
+            up_len =0
             if method in ("POST", "PUT", "PATCH"):
                 body = await request.body()
-                await add_up_bytes(len(body))
+                up_len = len(body)
+                await add_up_bytes(up_len)
                 httpx_response = await client.request(
                     method=method,
                     url=target_url,
@@ -140,27 +142,36 @@ async def proxy_handler(request: Request, target: str) -> Response:
             )
 
             if is_text_content:
-                content_bytes = httpx_response.content
-                await add_down_bytes(len(content_bytes))
+                down_len = len(httpx_response.content)
+                await add_down_bytes(down_len)
+                await record_request(domain, method, up_len, down_len)
 
                 return Response(
-                    content=content_bytes,
+                    content=httpx_response.content,
                     status_code=httpx_response.status_code,
                     headers=_sanitize_headers(httpx_response.headers),
                     media_type=content_type or "text/plain",
                 )
             else:
+                down_len_local = [0]
                 async def stream_generator():
                     async for chunk in httpx_response.aiter_bytes():
-                        await add_down_bytes(len(chunk))
+                        clen = len(chunk)
+                        await add_down_bytes(clen)
+                        down_len_local[0] += clen
                         yield chunk
 
-                return StreamingResponse(
+                response = StreamingResponse(
                     stream_generator(),
                     status_code=httpx_response.status_code,
                     headers=_sanitize_headers(httpx_response.headers),
                     media_type=content_type,
                 )
+                # Attach background task to record metrics after streaming completes
+                async def finalize():
+                    await record_request(domain, method, up_len, down_len_local[0])
+                response.background = finalize # FastAPI will run coroutine
+                return response
 
         except httpx.TimeoutException as e:
             logger.error(f"Upstream timeout for {target_url}: {e}")

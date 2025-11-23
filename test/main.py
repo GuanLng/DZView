@@ -5,7 +5,7 @@ import os
 import logging
 from pathlib import Path
 
-# Robust import handling (package vs script execution)
+# Robust import handling (supports running as package or script)
 try:
     from .proxy import router as proxy_router
     from .metrics import router as metrics_router
@@ -14,8 +14,7 @@ except ImportError:
     try:
         from proxy import router as proxy_router  # type: ignore
         from metrics import router as metrics_router  # type: ignore
-        import admin  # type: ignore
-        admin_router = admin.router
+        from admin import router as admin_router  # type: ignore
     except ImportError:
         import sys
         current_dir = Path(__file__).parent
