@@ -5,13 +5,28 @@ import os
 import logging
 from pathlib import Path
 
-# Support running as a module (test.main) or as a script from the test folder
+# Robust import handling (package vs script execution)
 try:
     from .proxy import router as proxy_router
     from .metrics import router as metrics_router
-except ImportError:  # pragma: no cover - fallback for direct execution
-    from proxy import router as proxy_router
-    from metrics import router as metrics_router
+    from .admin import router as admin_router
+except ImportError:
+    try:
+        from proxy import router as proxy_router  # type: ignore
+        from metrics import router as metrics_router  # type: ignore
+        import admin  # type: ignore
+        admin_router = admin.router
+    except ImportError:
+        import sys
+        current_dir = Path(__file__).parent
+        if str(current_dir) not in sys.path:
+            sys.path.append(str(current_dir))
+        import proxy  # type: ignore
+        import metrics  # type: ignore
+        import admin  # type: ignore
+        proxy_router = proxy.router
+        metrics_router = metrics.router
+        admin_router = admin.router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -22,20 +37,18 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Determine static dir relative to this file
 BASE_DIR = Path(__file__).parent
 STATIC_DIR = BASE_DIR / "static"
 
-# Mount static files only if directory exists
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     logger.info(f"Static files mounted successfully at {STATIC_DIR}")
 else:
     logger.warning(f"Static directory not found at {STATIC_DIR}, skipping static file serving")
 
-# Include routers
 app.include_router(proxy_router)
 app.include_router(metrics_router)
+app.include_router(admin_router)
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -73,7 +86,10 @@ async def root():
             status_code=200,
         )
 
+@app.get("/c_hello")
+async def c_hello(asker: str = "anonymous"):
+    return {"status": "ok", "asker": asker}
+
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000)
