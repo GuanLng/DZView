@@ -37,6 +37,32 @@ ALLOWED_DOMAINS_ENV = os.getenv("ALLOWED_DOMAINS", "")
 allowed_domains: List[str] = [d.strip() for d in ALLOWED_DOMAINS_ENV.split(",")] if ALLOWED_DOMAINS_ENV else []
 allowed_patterns = compile_allowed_patterns(allowed_domains)
 
+def _recompile_allowed():
+    global allowed_patterns
+    allowed_patterns = compile_allowed_patterns(allowed_domains)
+
+def add_allowed_domain(pattern: str) -> bool:
+    pattern = pattern.strip()
+    if not pattern:
+        return False
+    if pattern in allowed_domains:
+        return True
+    try:
+        compile_allowed_patterns([pattern]) # test compiling
+    except Exception:
+        return False
+    allowed_domains.append(pattern)
+    _recompile_allowed()
+    return True
+
+def remove_allowed_domain(pattern: str) -> bool:
+    pattern = pattern.strip()
+    if pattern in allowed_domains:
+        allowed_domains.remove(pattern)
+        _recompile_allowed()
+        return True
+    return False
+
 # --------------------------- Rate limit state ---------------------------
 RATE_LIMIT_ENABLED = False
 RATE_LIMIT_WINDOW_SECONDS = 60
@@ -72,7 +98,7 @@ def get_rate_limit_config() -> Dict[str, int | bool | None]:
     }
 
 
-def update_rate_limit_config(**kwargs) -> Dict[str, int | bool | None]:
+def update_rate_limit_config() -> Dict[str, int | bool | None]:
     global RATE_LIMIT_ENABLED, RATE_LIMIT_WINDOW_SECONDS, RATE_LIMIT_MAX_IP, RATE_LIMIT_MAX_DOMAIN, _rate_window_id, _rate_reset_epoch
     if "enabled" in kwargs:
         RATE_LIMIT_ENABLED = bool(kwargs["enabled"])

@@ -98,6 +98,34 @@ async def admin_update_rate_limit(request: Request):
     return {"config": cfg, "usage": usage}
 
 
+@router.post('/admin/domains/add')
+async def admin_add_domain(request: Request):
+    if not _has_valid_session(request):
+        return JSONResponse({'detail': 'Not authenticated'}, status_code=401)
+    data = await request.json()
+    pattern = (data.get('d') or '').strip()
+    try:
+        from .proxy import add_allowed_domain
+    except ImportError:
+        from proxy import add_allowed_domain # type: ignore
+    ok = add_allowed_domain(pattern)
+    return JSONResponse({'ok': ok, 'domains': allowed_domains})
+
+
+@router.post('/admin/domains/remove')
+async def admin_remove_domain(request: Request):
+    if not _has_valid_session(request):
+        return JSONResponse({'detail': 'Not authenticated'}, status_code=401)
+    data = await request.json()
+    pattern = (data.get('d') or '').strip()
+    try:
+        from .proxy import remove_allowed_domain
+    except ImportError:
+        from proxy import remove_allowed_domain # type: ignore
+    ok = remove_allowed_domain(pattern)
+    return JSONResponse({'ok': ok, 'domains': allowed_domains})
+
+
 @router.get("/admin", response_class=HTMLResponse)
 async def admin_page(request: Request):
     if not _has_valid_session(request):
@@ -109,47 +137,58 @@ async def admin_page(request: Request):
     )
 
     html = """<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><title>管理后台</title>
-<style>body{font-family:Arial,sans-serif;background:#f5f7fa;padding:28px;color:#333}h1{margin:0018px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px}.card{background:#fff;border:1px solid #e1e4e8;border-radius:10px;padding:18px;box-shadow:02px4px rgba(0,0,0,.05)}table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid #e1e4e8;padding:6px8px;text-align:left}th{background:#f1f5f9}.footer{margin-top:40px;font-size:12px;color:#777;text-align:center}code{background:#f1f5f9;padding:2px4px;border-radius:4px}button.logout{padding:6px10px;border:none;border-radius:6px;background:#ef4444;color:#fff;cursor:pointer;margin-top:16px}button.logout:hover{background:#dc2626}.muted{color:#666;font-size:12px;margin-top:4px}</style></head><body>
+<style>body{font-family:Arial,sans-serif;background:#f5f7fa;padding:28px;color:#333}h1{margin:0018px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px}.card{background:#fff;border:1px solid #e1e4e8;border-radius:10px;padding:18px;box-shadow:02px4px rgba(0,0,0,.05)}table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid #e1e4e8;padding:6px8px;text-align:left}th{background:#f1f5f9}.footer{margin-top:40px;font-size:12px;color:#777;text-align:center}code{background:#f1f5f9;padding:2px4px;border-radius:4px}button.logout{padding:6px10px;border:none;border-radius:6px;background:#ef4444;color:#fff;cursor:pointer;margin-top:16px}button.logout:hover{background:#dc2626}.muted{color:#666;font-size:12px;margin-top:4px}.flex{display:flex;gap:6px;margin-top:8px}input.small{padding:6px8px;border:1px solid #ccc;border-radius:6px;font-size:12px}button.small{padding:6px10px;border:none;border-radius:6px;background:#2563eb;color:#fff;font-size:12px;cursor:pointer}button.small.danger{background:#ef4444}</style></head><body>
 <h1>Py-Proxy 管理后台</h1>
 <div class='grid'>
-    <div class='card'>
-        <h2>总体流量</h2>
-        <div id='totals'>加载中...</div>
-        <div id='rates' class='muted'>速率: 加载中...</div>
-        <div class='muted' id='uptime'></div>
-    </div>
-    <div class='card'>
-        <h2>域名统计</h2>
-        <table id='domainTable'>
-            <thead><tr><th>域名</th><th>请求数</th><th>上行</th><th>下行</th><th>总字节</th></tr></thead>
-            <tbody><tr><td colspan='5'>加载中...</td></tr></tbody>
-        </table>
-    </div>
-    <div class='card'>
-        <h2>允许域名</h2>
-        <ul>__ALLOWED__</ul>
-    </div>
-    <div class='card'>
-        <h2>速率限制</h2>
-        <div id='rateLimitPanel'>加载中...</div>
-        <form id='rateLimitForm'>
-            <label><input type='checkbox' id='rl_enabled'> 启用</label><br>
-            窗口秒数: <input type='number' id='rl_window' min='1' value='60'><br>
-            每IP最大请求: <input type='number' id='rl_ip' min='1' placeholder='120'><br>
-            每域名最大请求: <input type='number' id='rl_dom' min='1' placeholder='300'><br>
-            <button type='submit'>保存</button>
-        </form>
-    </div>
+ <div class='card'>
+ <h2>总体流量</h2>
+ <div id='totals'>加载中...</div>
+ <div id='rates' class='muted'>速率: 加载中...</div>
+ <div class='muted' id='uptime'></div>
+ </div>
+ <div class='card'>
+ <h2>域名统计</h2>
+ <table id='domainTable'>
+ <thead><tr><th>域名</th><th>请求数</th><th>上行</th><th>下行</th><th>总字节</th></tr></thead>
+ <tbody><tr><td colspan='5'>加载中...</td></tr></tbody>
+ </table>
+ </div>
+ <div class='card'>
+ <h2>允许域名</h2>
+ <ul>__ALLOWED__</ul>
+ <div class='flex'>
+ <input id='domainInput' class='small' placeholder='添加或删除的正则'>
+ <button id='addDomainBtn' class='small'>添加</button>
+ <button id='delDomainBtn' class='small danger'>删除</button>
+ </div>
+ <div class='muted'>使用正则表达式匹配域名，如 ^example\\.com$</div>
+ </div>
+ <div class='card'>
+ <h2>速率限制</h2>
+ <div id='rateLimitPanel'>加载中...</div>
+ <form id='rateLimitForm'>
+ <label><input type='checkbox' id='rl_enabled'> 启用</label><br>
+ 窗口秒数: <input type='number' id='rl_window' min='1' value='60'><br>
+ 每IP最大请求: <input type='number' id='rl_ip' min='1' placeholder='120'><br>
+ 每域名最大请求: <input type='number' id='rl_dom' min='1' placeholder='300'><br>
+ <button type='submit'>保存</button>
+ </form>
+ </div>
 </div>
 <form method='post' action='/admin/logout'>
-    <button type='submit' class='logout'>退出登录</button>
+ <button type='submit' class='logout'>退出登录</button>
 </form>
 <div class='footer'>Py-Proxy ©2024</div>
 <script>
 function fmtBytes(b){if(!b)return'0 B';const k=1024,s=['B','KB','MB','GB','TB'];const i=Math.floor(Math.log(b)/Math.log(k));const v=b/Math.pow(k,i);return v.toFixed(v>=100?0:v>=10?1:2)+' '+s[i];}
 function fmtKBps(bps){return (bps/1024).toFixed(bps>=102400?0:bps>=10240?1:2)+' KB/s';}
 function loadMetrics(){fetch('/metrics/traffic').then(r=>r.json()).then(m=>{document.getElementById('totals').innerHTML='上行: <strong>'+fmtBytes(m.total_up_bytes)+'</strong><br>下行: <strong>'+fmtBytes(m.total_down_bytes)+'</strong><br>总计: <strong>'+fmtBytes(m.total_bytes)+'</strong><br>请求数: <strong>'+m.total_requests+'</strong>';document.getElementById('rates').innerHTML='上行速率: '+fmtKBps(m.rates.up_bps)+' | 下行速率: '+fmtKBps(m.rates.down_bps)+' (窗口 '+m.window_seconds+'s)';document.getElementById('uptime').innerHTML='运行时间: '+Math.floor(m.uptime_seconds)+' 秒';const tbody=document.querySelector('#domainTable tbody');const entries=Object.entries(m.domain_stats);if(!entries.length){tbody.innerHTML='<tr><td colspan="5"><em>暂无数据</em></td></tr>';return;}tbody.innerHTML=entries.map(([d,st])=>'<tr><td>'+d+'</td><td>'+st.requests+'</td><td>'+fmtBytes(st.up_bytes)+'</td><td>'+fmtBytes(st.down_bytes)+'</td><td>'+fmtBytes(st.up_bytes+st.down_bytes)+'</td></tr>').join('');});}
-async function loadRateLimit(){const r = await fetch('/admin/rate_limit');if(!r.ok){document.getElementById('rateLimitPanel').innerHTML='<em>无法获取</em>';return;}const data = await r.json();const c = data.config; const u = data.usage;document.getElementById('rl_enabled').checked = !!c.enabled;document.getElementById('rl_window').value = c.window_seconds;document.getElementById('rl_ip').value = c.max_requests_per_ip || '';document.getElementById('rl_dom').value = c.max_requests_per_domain || '';let html = '<div>状态: '+(c.enabled?'启用':'关闭')+'</div>';if(c.enabled){html += '<div>窗口: '+c.window_seconds+'s 剩余: '+(u.reset_epoch - Math.floor(Date.now()/1000))+'s</div>';html += '<div>当前IP条目: '+Object.keys(u.counts_ip||{}).length+'</div>';html += '<div>当前域名条目: '+Object.keys(u.counts_domain||{}).length+'</div>'; }document.getElementById('rateLimitPanel').innerHTML = html;}
+async function loadRateLimit(){const r = await fetch('/admin/rate_limit');if(!r.ok){document.getElementById('rateLimitPanel').innerHTML='<em>无法获取</em>';return;}const data = await r.json();const c = data.config; const u = data.usage;document.getElementById('rl_enabled').checked = !!c.enabled;document.getElementById('rl_window').value = c.window_seconds;document.getElementById('rl_ip').value = c.max_requests_per_ip || '';document.getElementById('rl_dom').value = c.max_requests_per_domain || '';let html = '<div>状态: '+(c.enabled?'启用':'关闭')+'</div>';if(c.enabled){html += '<div>窗口: '+c.window_seconds+'s 剩余: '+(u.reset_epoch - Math.floor(Date.now()/1000))+'s</div>';html += '<div>允许域名数: '+document.querySelector('#domainInput').value.length+'</div>'; }document.getElementById('rateLimitPanel').innerHTML = html;}
+// Domain add/remove
+function refreshAllowed(list){const ul=document.querySelector('ul');ul.innerHTML=list.map(d=>'<li><code>'+d+'</code></li>').join('')||'<li><em>未配置</em></li>'}
+async function addDomain(){const v=document.getElementById('domainInput').value.trim();if(!v)return;const r=await fetch('/admin/domains/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({d:v})});if(r.ok){const data=await r.json();refreshAllowed(data.domains);document.getElementById('domainInput').value='';}}
+async function delDomain(){const v=document.getElementById('domainInput').value.trim();if(!v)return;const r=await fetch('/admin/domains/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({d:v})});if(r.ok){const data=await r.json();refreshAllowed(data.domains);document.getElementById('domainInput').value='';}}
+ document.getElementById('addDomainBtn').onclick=addDomain; document.getElementById('delDomainBtn').onclick=delDomain;
 
 document.getElementById('rateLimitForm').addEventListener('submit', async (e)=>{e.preventDefault();const payload = {enabled: document.getElementById('rl_enabled').checked,window_seconds: parseInt(document.getElementById('rl_window').value,10),max_requests_per_ip: parseInt(document.getElementById('rl_ip').value,10)||null,max_requests_per_domain: parseInt(document.getElementById('rl_dom').value,10)||null};const r = await fetch('/admin/rate_limit/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(r.ok){loadRateLimit();} else {alert('更新失败');}});
 loadMetrics();setInterval(loadMetrics,2000);
