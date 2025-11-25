@@ -1,14 +1,14 @@
 # Admin dashboard (ASCII only, UTF-8)
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect, Body
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 import os
 
 try:
     from .metrics import get_totals
-    from .proxy import allowed_domains
+    from .proxy import allowed_domains, get_rate_limit_config, update_rate_limit_config, get_window_usage
 except ImportError:
     from metrics import get_totals
-    from proxy import allowed_domains
+    from proxy import allowed_domains, get_rate_limit_config, update_rate_limit_config, get_window_usage
 
 router = APIRouter()
 ADMIN_KEY_ENV = "ADMIN_API_KEY"
@@ -67,6 +67,26 @@ async def admin_login(request: Request):
     return resp
 
 
+@router.get('/admin/rate_limit')
+async def admin_get_rate_limit():
+    cfg = await get_rate_limit_config()
+    usage = await get_window_usage()
+    return {'config': cfg, 'usage': usage}
+
+
+@router.post('/admin/rate_limit/update')
+async def admin_update_rate_limit(request: Request):
+    data = await request.json()
+    # Accept keys: enabled, window_seconds, max_requests_per_ip, max_requests_per_domain
+    kwargs = {}
+    for key in ('enabled', 'window_seconds', 'max_requests_per_ip', 'max_requests_per_domain'):
+        if key in data:
+            kwargs[key] = data[key]
+    cfg = await update_rate_limit_config(**kwargs)
+    usage = await get_window_usage()
+    return {'config': cfg, 'usage': usage}
+
+
 @router.get("/admin", response_class=HTMLResponse)
 async def admin_page(request: Request):
     expected = _get_expected_key()
@@ -98,7 +118,14 @@ async def admin_page(request: Request):
  </div>
  <div class='card'>
  <h2>速率限制</h2>
- <p><em>未启用</em></p>
+ <div id='rateLimitPanel'>加载中...</div>
+ <form id='rateLimitForm'>
+ <label><input type='checkbox' id='rl_enabled'> 启用</label><br>
+ 窗口秒数: <input type='number' id='rl_window' min='1' value='60'><br>
+ 每IP最大请求: <input type='number' id='rl_ip' min='1' placeholder='120'><br>
+ 每域名最大请求: <input type='number' id='rl_dom' min='1' placeholder='300'><br>
+ <button type='submit'>保存</button>
+ </form>
  </div>
 </div>
 <form method='post' action='/admin/logout'>
@@ -109,7 +136,37 @@ async def admin_page(request: Request):
 function fmtBytes(b){if(!b)return'0 B';const k=1024,s=['B','KB','MB','GB','TB'];const i=Math.floor(Math.log(b)/Math.log(k));const v=b/Math.pow(k,i);return v.toFixed(v>=100?0:v>=10?1:2)+' '+s[i];}
 function fmtKBps(bps){return (bps/1024).toFixed(bps>=102400?0:bps>=10240?1:2)+' KB/s';}
 function loadMetrics(){fetch('/metrics/traffic').then(r=>r.json()).then(m=>{document.getElementById('totals').innerHTML='上行: <strong>'+fmtBytes(m.total_up_bytes)+'</strong><br>下行: <strong>'+fmtBytes(m.total_down_bytes)+'</strong><br>总计: <strong>'+fmtBytes(m.total_bytes)+'</strong><br>请求数: <strong>'+m.total_requests+'</strong>';document.getElementById('rates').innerHTML='上行速率: '+fmtKBps(m.rates.up_bps)+' | 下行速率: '+fmtKBps(m.rates.down_bps)+' (窗口 '+m.window_seconds+'s)';document.getElementById('uptime').innerHTML='运行时间: '+Math.floor(m.uptime_seconds)+' 秒';const tbody=document.querySelector('#domainTable tbody');const entries=Object.entries(m.domain_stats);if(!entries.length){tbody.innerHTML='<tr><td colspan="5"><em>暂无数据</em></td></tr>';return;}tbody.innerHTML=entries.map(([d,st])=>'<tr><td>'+d+'</td><td>'+st.requests+'</td><td>'+fmtBytes(st.up_bytes)+'</td><td>'+fmtBytes(st.down_bytes)+'</td><td>'+fmtBytes(st.up_bytes+st.down_bytes)+'</td></tr>').join('');});}
+async function loadRateLimit(){
+ const r = await fetch('/admin/rate_limit');
+ if(!r.ok){document.getElementById('rateLimitPanel').innerHTML='<em>无法获取</em>';return;}
+ const data = await r.json();
+ const c = data.config; const u = data.usage;
+ document.getElementById('rl_enabled').checked = !!c.enabled;
+ document.getElementById('rl_window').value = c.window_seconds;
+ document.getElementById('rl_ip').value = c.max_requests_per_ip || '';
+ document.getElementById('rl_dom').value = c.max_requests_per_domain || '';
+ let html = '<div>状态: '+(c.enabled?'启用':'关闭')+'</div>';
+ if(c.enabled){
+ html += '<div>窗口: '+c.window_seconds+'s 剩余: '+(u.reset_epoch - Math.floor(Date.now()/1000))+'s</div>';
+ html += '<div>当前IP条目: '+Object.keys(u.counts_ip||{}).length+'</div>';
+ html += '<div>当前域名条目: '+Object.keys(u.counts_domain||{}).length+'</div>';
+ }
+ document.getElementById('rateLimitPanel').innerHTML = html;
+}
+
+document.getElementById('rateLimitForm').addEventListener('submit', async (e)=>{
+ e.preventDefault();
+ const payload = {
+ enabled: document.getElementById('rl_enabled').checked,
+ window_seconds: parseInt(document.getElementById('rl_window').value,10),
+ max_requests_per_ip: parseInt(document.getElementById('rl_ip').value,10)||null,
+ max_requests_per_domain: parseInt(document.getElementById('rl_dom').value,10)||null
+ };
+ const r = await fetch('/admin/rate_limit/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+ if(r.ok){loadRateLimit();} else {alert('更新失败');}
+});
 loadMetrics();setInterval(loadMetrics,2000);
+loadRateLimit();setInterval(loadRateLimit,5000);
 </script>
 </body></html>"""
 
