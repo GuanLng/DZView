@@ -69,8 +69,8 @@ async def admin_login(request: Request):
 
 @router.get('/admin/rate_limit')
 async def admin_get_rate_limit():
-    cfg = await get_rate_limit_config()
-    usage = await get_window_usage()
+    cfg = get_rate_limit_config()
+    usage = get_window_usage()
     return {'config': cfg, 'usage': usage}
 
 
@@ -82,8 +82,8 @@ async def admin_update_rate_limit(request: Request):
     for key in ('enabled', 'window_seconds', 'max_requests_per_ip', 'max_requests_per_domain'):
         if key in data:
             kwargs[key] = data[key]
-    cfg = await update_rate_limit_config(**kwargs)
-    usage = await get_window_usage()
+    cfg = update_rate_limit_config(**kwargs)
+    usage = get_window_usage()
     return {'config': cfg, 'usage': usage}
 
 
