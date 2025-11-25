@@ -1,1 +1,659 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Py-Proxy 管理员登录</title>
+  <!-- 引入外部资源 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  
+  <!-- Tailwind 配置 - 保持与主项目一致的配色方案 -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3498db',      // 与主项目按钮颜色一致
+            secondary: '#2c3e50',    // 主项目标题颜色
+            accent: '#2980b9',       // 按钮hover颜色
+            danger: '#e74c3c',       // 错误提示颜色，与主项目一致
+          },
+          fontFamily: {
+            inter: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+          },
+        },
+      }
+    }
+  </script>
+  
+  <!-- 自定义工具类 -->
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .form-input-focus {
+        @apply focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-300;
+      }
+      .btn-hover {
+        @apply hover:shadow-lg hover:translate-y-[-2px] transition-all duration-300;
+      }
+    }
+  </style>
+  
+  <style>
+    /* 全局样式保持与主项目一致 */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background-color: #f8f9fa; /* 主项目背景色 */
+    }
+    
+    /* 动画效果 */
+    .slide-in {
+      animation: slideIn 0.5s ease forwards;
+    }
+    
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    /* 表单切换过渡 */
+    .form-container {
+      transition: all 0.4s ease;
+    }
+    
+    /* 背景渐变 - 基于主项目蓝色系 */
+    .bg-gradient-custom {
+      background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+  <div class="w-full max-w-6xl">
+    <div class="bg-white rounded-2xl shadow-xl overflow-hidden">
+      <!-- 响应式布局 -->
+      <div class="md:flex">
+        <!-- 左侧：品牌信息区 -->
+        <div class="hidden md:block md:w-1/2 bg-gradient-custom text-white p-10 flex flex-col justify-between">
+          <div class="slide-in">
+            <h1 class="text-[clamp(1.8rem,4vw,2.5rem)] font-bold mb-4">Py-Proxy 管理员</h1>
+            <p class="text-white/80 text-[clamp(1rem,2vw,1.2rem)] mb-8">
+              登录到管理员控制台，管理代理服务、查看流量统计和配置安全规则。
+            </p>
+          </div>
+          
+          <div class="slide-in" style="animation-delay: 0.2s;">
+            <div class="space-y-6">
+              <div class="flex items-center">
+                <div class="bg-white/20 p-3 rounded-full mr-4">
+                  <i class="fa fa-tachometer text-xl"></i>
+                </div>
+                <div>
+                  <h3 class="font-semibold text-lg">流量监控</h3>
+                  <p class="text-white/70 text-sm">实时查看代理服务流量数据</p>
+                </div>
+              </div>
+              
+              <div class="flex items-center">
+                <div class="bg-white/20 p-3 rounded-full mr-4">
+                  <i class="fa fa-shield text-xl"></i>
+                </div>
+                <div>
+                  <h3 class="font-semibold text-lg">安全管理</h3>
+                  <p class="text-white/70 text-sm">配置域名白名单和访问限制</p>
+                </div>
+              </div>
+              
+              <div class="flex items-center">
+                <div class="bg-white/20 p-3 rounded-full mr-4">
+                  <i class="fa fa-cogs text-xl"></i>
+                </div>
+                <div>
+                  <h3 class="font-semibold text-lg">系统设置</h3>
+                  <p class="text-white/70 text-sm">管理速率限制和系统参数</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mt-12 text-center text-white/60 text-sm slide-in" style="animation-delay: 0.4s;">
+            <p>© 2023 Py-Proxy | Secure HTTP Proxy</p>
+          </div>
+        </div>
+        
+        <!-- 右侧：表单区域 -->
+        <div class="w-full md:w-1/2 p-6 md:p-10">
+          <!-- 品牌标识（移动端显示） -->
+          <div class="md:hidden flex justify-center mb-8">
+            <div class="text-primary text-3xl font-bold">
+              <i class="fa fa-random mr-2"></i>Py-Proxy
+            </div>
+          </div>
+          
+          <!-- 表单切换标签 -->
+          <div class="flex mb-8 border-b">
+            <button id="login-tab" class="flex-1 py-3 px-4 font-medium text-primary border-b-2 border-primary">
+              管理员登录
+            </button>
+            <button id="register-tab" class="flex-1 py-3 px-4 font-medium text-gray-500 hover:text-primary transition-colors">
+              注册管理员
+            </button>
+          </div>
+          
+          <!-- 登录表单 -->
+          <div id="login-form" class="form-container slide-in">
+            <form id="adminLoginForm">
+              <div class="mb-6">
+                <label for="login-email" class="block text-sm font-medium text-gray-700 mb-2">
+                  管理员邮箱
+                </label>
+                <div class="relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="fa fa-envelope text-gray-400"></i>
+                  </div>
+                  <input 
+                    type="email" 
+                    id="login-email" 
+                    class="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg form-input-focus"
+                    placeholder="请输入管理员邮箱" 
+                    required
+                  >
+                </div>
+              </div>
+              
+              <div class="mb-6">
+                <div class="flex justify-between items-center mb-2">
+                  <label for="login-password" class="block text-sm font-medium text-gray-700">
+                    密码
+                  </label>
+                  <a href="#" class="text-sm text-primary hover:text-primary/80 transition-colors">
+                    忘记密码?
+                  </a>
+                </div>
+                <div class="relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="fa fa-lock text-gray-400"></i>
+                  </div>
+                  <input 
+                    type="password" 
+                    id="login-password" 
+                    class="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg form-input-focus"
+                    placeholder="请输入管理员密码" 
+                    required
+                  >
+                  <button type="button" class="absolute inset-y-0 right-0 pr-3 flex items-center">
+                    <i class="fa fa-eye-slash text-gray-400 toggle-password" data-target="login-password"></i>
+                  </button>
+                </div>
+              </div>
+              
+              <div class="mb-8">
+                <div class="flex items-center">
+                  <input 
+                    type="checkbox" 
+                    id="remember-me" 
+                    class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                  >
+                  <label for="remember-me" class="ml-2 block text-sm text-gray-700">
+                    记住管理员登录状态
+                  </label>
+                </div>
+              </div>
+              
+              <div class="space-y-4">
+                <button 
+                  type="submit" 
+                  class="w-full bg-primary hover:bg-accent text-white font-medium py-3 px-4 rounded-lg btn-hover"
+                >
+                  登录管理后台
+                </button>
+                
+                <div id="loginError" class="bg-danger/10 text-danger text-sm p-3 rounded-lg hidden">
+                  <i class="fa fa-exclamation-circle mr-1"></i>
+                  <span id="loginErrorMessage">登录失败，请检查您的凭据</span>
+                </div>
+              </div>
+            </form>
+          </div>
+          
+          <!-- 注册表单 -->
+          <div id="register-form" class="form-container hidden">
+            <form id="adminRegisterForm">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                  <label for="register-name" class="block text-sm font-medium text-gray-700 mb-2">
+                    管理员姓名
+                  </label>
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <i class="fa fa-user text-gray-400"></i>
+                    </div>
+                    <input 
+                      type="text" 
+                      id="register-name" 
+                      class="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg form-input-focus"
+                      placeholder="请输入管理员姓名" 
+                      required
+                    >
+                  </div>
+                </div>
+                
+                <div>
+                  <label for="register-email" class="block text-sm font-medium text-gray-700 mb-2">
+                    管理员邮箱
+                  </label>
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <i class="fa fa-envelope text-gray-400"></i>
+                    </div>
+                    <input 
+                      type="email" 
+                      id="register-email" 
+                      class="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg form-input-focus"
+                      placeholder="请输入管理员邮箱" 
+                      required
+                    >
+                  </div>
+                </div>
+              </div>
+              
+              <div class="mb-6">
+                <label for="register-password" class="block text-sm font-medium text-gray-700 mb-2">
+                  管理员密码
+                </label>
+                <div class="relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="fa fa-lock text-gray-400"></i>
+                  </div>
+                  <input 
+                    type="password" 
+                    id="register-password" 
+                    class="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg form-input-focus"
+                    placeholder="至少8个字符，包含字母和数字" 
+                    required
+                  >
+                  <button type="button" class="absolute inset-y-0 right-0 pr-3 flex items-center">
+                    <i class="fa fa-eye-slash text-gray-400 toggle-password" data-target="register-password"></i>
+                  </button>
+                </div>
+                <div id="password-strength" class="mt-2">
+                  <div class="flex items-center">
+                    <div class="h-1 w-1/4 bg-gray-200 rounded-full mr-1"></div>
+                    <div class="h-1 w-1/4 bg-gray-200 rounded-full mr-1"></div>
+                    <div class="h-1 w-1/4 bg-gray-200 rounded-full mr-1"></div>
+                    <div class="h-1 w-1/4 bg-gray-200 rounded-full"></div>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1">密码强度: 弱</p>
+                </div>
+              </div>
+              
+              <div class="mb-6">
+                <label for="register-confirm" class="block text-sm font-medium text-gray-700 mb-2">
+                  确认密码
+                </label>
+                <div class="relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="fa fa-lock text-gray-400"></i>
+                  </div>
+                  <input 
+                    type="password" 
+                    id="register-confirm" 
+                    class="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg form-input-focus"
+                    placeholder="请再次输入密码" 
+                    required
+                  >
+                </div>
+                <p id="password-match" class="text-xs text-danger mt-1 hidden">
+                  两次输入的密码不一致
+                </p>
+              </div>
+              
+              <div class="mb-6">
+                <label for="register-api-key" class="block text-sm font-medium text-gray-700 mb-2">
+                  初始API密钥
+                </label>
+                <div class="relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="fa fa-key text-gray-400"></i>
+                  </div>
+                  <input 
+                    type="text" 
+                    id="register-api-key" 
+                    class="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg form-input-focus"
+                    placeholder="输入系统初始API密钥" 
+                    required
+                  >
+                </div>
+                <p class="text-xs text-gray-500 mt-1">
+                  用于验证管理员注册权限，由系统管理员提供
+                </p>
+              </div>
+              
+              <div class="mb-8">
+                <div class="flex items-start">
+                  <div class="flex items-center h-5">
+                    <input 
+                      id="terms" 
+                      name="terms" 
+                      type="checkbox" 
+                      class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                      required
+                    >
+                  </div>
+                  <div class="ml-3 text-sm">
+                    <label for="terms" class="font-medium text-gray-700">
+                      我同意遵守管理员<a href="#" class="text-primary hover:text-primary/80 transition-colors">管理规范</a>和
+                      <a href="#" class="text-primary hover:text-primary/80 transition-colors">安全协议</a>
+                    </label>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="space-y-4">
+                <button 
+                  type="submit" 
+                  class="w-full bg-primary hover:bg-accent text-white font-medium py-3 px-4 rounded-lg btn-hover"
+                >
+                  注册管理员账户
+                </button>
+                
+                <div id="registerError" class="bg-danger/10 text-danger text-sm p-3 rounded-lg hidden">
+                  <i class="fa fa-exclamation-circle mr-1"></i>
+                  <span id="registerErrorMessage">注册失败，请检查输入信息</span>
+                </div>
+                
+                <p class="text-center text-sm text-gray-600">
+                  已有管理员账户? 
+                  <a href="#" id="switch-to-login" class="text-primary font-medium hover:text-primary/80 transition-colors">
+                    立即登录
+                  </a>
+                </p>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 移动端品牌信息 -->
+    <div class="md:hidden mt-8 text-center">
+      <div class="bg-gradient-custom text-white p-6 rounded-xl shadow-lg">
+        <h3 class="text-xl font-bold mb-4">管理员功能</h3>
+        <div class="grid grid-cols-3 gap-4">
+          <div class="p-3">
+            <div class="bg-white/20 p-3 rounded-full inline-block mb-2">
+              <i class="fa fa-tachometer text-xl"></i>
+            </div>
+            <p class="text-sm">流量监控</p>
+          </div>
+          
+          <div class="p-3">
+            <div class="bg-white/20 p-3 rounded-full inline-block mb-2">
+              <i class="fa fa-shield text-xl"></i>
+            </div>
+            <p class="text-sm">安全管理</p>
+          </div>
+          
+          <div class="p-3">
+            <div class="bg-white/20 p-3 rounded-full inline-block mb-2">
+              <i class="fa fa-cogs text-xl"></i>
+            </div>
+            <p class="text-sm">系统设置</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="mt-6 text-center text-gray-500 text-sm">
+        <p>© 2023 Py-Proxy | Secure HTTP Proxy</p>
+      </div>
+    </div>
+  </div>
 
+  <script>
+    // 表单切换逻辑
+    document.addEventListener('DOMContentLoaded', function() {
+      const loginTab = document.getElementById('login-tab');
+      const registerTab = document.getElementById('register-tab');
+      const loginForm = document.getElementById('login-form');
+      const registerForm = document.getElementById('register-form');
+      const switchToLogin = document.getElementById('switch-to-login');
+      
+      // 点击登录标签
+      loginTab.addEventListener('click', function() {
+        loginTab.classList.add('text-primary', 'border-primary');
+        loginTab.classList.remove('text-gray-500');
+        registerTab.classList.add('text-gray-500');
+        registerTab.classList.remove('text-primary', 'border-primary');
+        
+        registerForm.classList.add('hidden');
+        loginForm.classList.remove('hidden');
+        loginForm.classList.add('slide-in');
+        
+        // 清除错误信息
+        document.getElementById('loginError').classList.add('hidden');
+        document.getElementById('registerError').classList.add('hidden');
+        
+        window.scrollTo(0, 0);
+      });
+      
+      // 点击注册标签
+      registerTab.addEventListener('click', function() {
+        registerTab.classList.add('text-primary', 'border-primary');
+        registerTab.classList.remove('text-gray-500');
+        loginTab.classList.add('text-gray-500');
+        loginTab.classList.remove('text-primary', 'border-primary');
+        
+        loginForm.classList.add('hidden');
+        registerForm.classList.remove('hidden');
+        registerForm.classList.add('slide-in');
+        
+        // 清除错误信息
+        document.getElementById('loginError').classList.add('hidden');
+        document.getElementById('registerError').classList.add('hidden');
+        
+        window.scrollTo(0, 0);
+      });
+      
+      // 注册表单中的切换到登录
+      switchToLogin.addEventListener('click', function(e) {
+        e.preventDefault();
+        loginTab.click();
+      });
+      
+      // 密码显示/隐藏切换
+      const togglePasswordButtons = document.querySelectorAll('.toggle-password');
+      togglePasswordButtons.forEach(button => {
+        button.addEventListener('click', function() {
+          const targetId = this.getAttribute('data-target');
+          const passwordInput = document.getElementById(targetId);
+          const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+          passwordInput.setAttribute('type', type);
+          
+          // 切换图标
+          this.classList.toggle('fa-eye');
+          this.classList.toggle('fa-eye-slash');
+        });
+      });
+      
+      // 密码强度检测
+      const passwordInput = document.getElementById('register-password');
+      const strengthIndicator = document.getElementById('password-strength');
+      const strengthBars = strengthIndicator.querySelectorAll('div div');
+      const strengthText = strengthIndicator.querySelector('p');
+      
+      passwordInput.addEventListener('input', function() {
+        const password = this.value;
+        let strength = 0;
+        
+        // 密码长度
+        if (password.length >= 8) strength++;
+        if (password.length >= 12) strength++;
+        
+        // 包含小写字母
+        if (/[a-z]/.test(password)) strength++;
+        
+        // 包含大写字母
+        if (/[A-Z]/.test(password)) strength++;
+        
+        // 包含数字
+        if (/[0-9]/.test(password)) strength++;
+        
+        // 包含特殊字符
+        if (/[^A-Za-z0-9]/.test(password)) strength++;
+        
+        // 更新强度指示器
+        for (let i = 0; i < 4; i++) {
+          if (i < Math.min(strength, 4)) {
+            // 根据强度设置颜色
+            if (strength <= 2) {
+              strengthBars[i].classList.add('bg-red-500');
+              strengthBars[i].classList.remove('bg-yellow-500', 'bg-green-500');
+            } else if (strength === 3) {
+              strengthBars[i].classList.add('bg-yellow-500');
+              strengthBars[i].classList.remove('bg-red-500', 'bg-green-500');
+            } else {
+              strengthBars[i].classList.add('bg-green-500');
+              strengthBars[i].classList.remove('bg-red-500', 'bg-yellow-500');
+            }
+          } else {
+            strengthBars[i].className = 'h-1 w-1/4 bg-gray-200 rounded-full mr-1';
+          }
+        }
+        
+        // 更新强度文本
+        let text, color;
+        if (strength <= 2) {
+          text = '密码强度: 弱 (建议增加长度和复杂度)';
+          color = 'text-red-500';
+        } else if (strength === 3) {
+          text = '密码强度: 中';
+          color = 'text-yellow-500';
+        } else {
+          text = '密码强度: 强';
+          color = 'text-green-500';
+        }
+        
+        strengthText.textContent = text;
+        strengthText.className = `text-xs ${color} mt-1`;
+      });
+      
+      // 密码匹配验证
+      const confirmInput = document.getElementById('register-confirm');
+      const matchError = document.getElementById('password-match');
+      
+      confirmInput.addEventListener('input', function() {
+        const password = passwordInput.value;
+        const confirm = this.value;
+        
+        if (password && confirm && password !== confirm) {
+          matchError.classList.remove('hidden');
+          this.classList.add('border-danger');
+          this.classList.remove('border-gray-300');
+        } else {
+          matchError.classList.add('hidden');
+          this.classList.remove('border-danger');
+          this.classList.add('border-gray-300');
+        }
+      });
+      
+      // 登录表单提交处理
+      const loginFormElement = document.getElementById('adminLoginForm');
+      loginFormElement.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+        const errorElement = document.getElementById('loginError');
+        const errorMessage = document.getElementById('loginErrorMessage');
+        
+        try {
+          // 发送登录请求到后端
+          const response = await fetch('/admin/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, password }),
+          });
+          
+          if (response.ok) {
+            // 登录成功，重定向到管理员控制台
+            window.location.href = '/admin';
+          } else {
+            const data = await response.json();
+            errorMessage.textContent = data.detail || '登录失败，请检查邮箱和密码';
+            errorElement.classList.remove('hidden');
+          }
+        } catch (error) {
+          errorMessage.textContent = '网络错误，请稍后重试';
+          errorElement.classList.remove('hidden');
+          console.error('Login error:', error);
+        }
+      });
+      
+      // 注册表单提交处理
+      const registerFormElement = document.getElementById('adminRegisterForm');
+      registerFormElement.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const name = document.getElementById('register-name').value;
+        const email = document.getElementById('register-email').value;
+        const password = document.getElementById('register-password').value;
+        const confirmPassword = document.getElementById('register-confirm').value;
+        const apiKey = document.getElementById('register-api-key').value;
+        const errorElement = document.getElementById('registerError');
+        const errorMessage = document.getElementById('registerErrorMessage');
+        
+        // 客户端验证
+        if (password !== confirmPassword) {
+          errorMessage.textContent = '两次输入的密码不一致';
+          errorElement.classList.remove('hidden');
+          return;
+        }
+        
+        if (password.length < 8) {
+          errorMessage.textContent = '密码长度至少为8个字符';
+          errorElement.classList.remove('hidden');
+          return;
+        }
+        
+        try {
+          // 发送注册请求到后端
+          const response = await fetch('/admin/register', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-Key': apiKey  // 使用初始API密钥进行注册验证
+            },
+            body: JSON.stringify({ name, email, password }),
+          });
+          
+          if (response.ok) {
+            // 注册成功，切换到登录表单
+            alert('管理员账户注册成功，请登录');
+            loginTab.click();
+            // 填充邮箱以便用户登录
+            document.getElementById('login-email').value = email;
+          } else {
+            const data = await response.json();
+            errorMessage.textContent = data.detail || '注册失败，请检查输入信息';
+            errorElement.classList.remove('hidden');
+          }
+        } catch (error) {
+          errorMessage.textContent = '网络错误，请稍后重试';
+          errorElement.classList.remove('hidden');
+          console.error('Registration error:', error);
+        }
+      });
+    });
+  </script>
+</body>
+</html>
